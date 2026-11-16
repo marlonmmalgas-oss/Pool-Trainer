@@ -21,20 +21,39 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Install Gradle from project configuration
+        shell: bash
+        run: |
+          PROP="gradle/wrapper/gradle-wrapper.properties"
+
+          if [ ! -f "$PROP" ]; then
+            echo "Gradle wrapper properties file is missing"
+            exit 1
+          fi
+
+          VERSION=$(sed -n 's/.*gradle-\([0-9][0-9.]*\)-\(bin\|all\)\.zip.*/\1/p' "$PROP" | head -1)
+
+          if [ -z "$VERSION" ]; then
+            echo "Could not determine Gradle version"
+            cat "$PROP"
+            exit 1
+          fi
+
+          echo "Installing Gradle $VERSION"
+          curl -fL "https://services.gradle.org/distributions/gradle-${VERSION}-bin.zip" -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-${VERSION}/bin" >> "$GITHUB_PATH"
+
       - name: Locate Android SDK
         shell: bash
         run: |
           SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
-
           SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)
-
           if [ -z "$SDKMANAGER" ]; then
-            echo "ERROR: sdkmanager not found in $SDK_ROOT"
+            echo "Android SDK manager not found"
             exit 1
           fi
-
-          echo "Found: $SDKMANAGER"
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
 
       - name: Accept Android licences
@@ -42,14 +61,10 @@ jobs:
 
       - name: Install Android SDK 36
         run: |
-          sdkmanager --install \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
+          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
 
       - name: Build APK
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
