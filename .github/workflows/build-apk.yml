@@ -21,13 +21,30 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Accept Android SDK licences
+      - name: Locate Android SDK
+        shell: bash
         run: |
-          yes | sdkmanager --licenses || true
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+
+          SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager -print -quit)
+
+          if [ -z "$SDKMANAGER" ]; then
+            echo "ERROR: sdkmanager not found in $SDK_ROOT"
+            exit 1
+          fi
+
+          echo "Found: $SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+
+      - name: Accept Android licences
+        run: yes | sdkmanager --licenses
 
       - name: Install Android SDK 36
         run: |
-          sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
 
       - name: Build APK
         run: |
